@@ -2,6 +2,10 @@ import pandas as pd
 import numpy as np
 
 def assign_monsoon(month):
+    """
+    Categorizes month based on monsoon seasons
+    """
+    
     # Northeast Monsoon (Wet) Jan - Mar, Nov, Dec
     if month in [1, 2, 3, 11, 12]:
         return "NE"
@@ -104,58 +108,3 @@ def compute_api_and_categories(df):
     )
 
     return df
-
-def clean_df(df):
-    # Load dataset
-    df = pd.read_parquet("./data/air_pollution.parquet")
-
-    # Convert date values into DateTime objects
-    df["date"] = pd.to_datetime(df["date"])
-
-    # Pivot from long form to wide form
-    df_pivot = df.pivot(
-        index="date",
-        columns="pollutant",
-        values="concentration"
-    ).reset_index() # Reset index instead of using "date" as the new index
-
-    # Temporal Filtering: Drop data before Jan 2018
-    df_final = df_pivot[
-        (df_pivot["date"] >= "2018-01-01")
-        & (df_pivot["date"] <= "2022-12-31")
-    ].reset_index(
-        drop=True
-    )
-
-    """Feature Engineering
-    """
-
-    # Particulate Ratio (PM 2.5/PM 10)
-    df_final["PM_Ratio"] = df_final["PM 2.5"]/df_final["PM 10"]
-
-    # API Score
-    df_final = compute_api_and_categories(df_final)
-
-    # Extract Month
-    df_final["Month"] = df_final["date"].dt.month
-
-    # Monsoon Season
-    df_final["Monsoon_Season"] = df_final["Month"].apply(assign_monsoon)
-
-    # One-Hot Encoding
-    df_encoded = pd.get_dummies(
-        df_final,
-        columns=["Monsoon_Season"],
-        prefix="Monsoon",
-        dtype=int,
-        drop_first=False, # Retain all categories
-    )
-
-    # 1-month lag PM 2.5
-    df_encoded["PM25_lag1"] = df_encoded["PM 2.5"].shift(1)
-
-    df_encoded = df_encoded.dropna().reset_index(
-        drop=True
-    ) # Drop first row due to NaN lag
-
-    return df_encoded
